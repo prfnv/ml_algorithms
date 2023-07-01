@@ -11,8 +11,8 @@ _logger = logging.getLogger(__name__)
 class MyLineReg:
     def __init__(
         self,
-        n_iter: int = None,
-        learning_rate: Union[float, Callable] = None,
+        n_iter: int = 100,
+        learning_rate: Union[float, Callable] = 0.1,
         metric: str = None,
         reg: str = None,
         l1_coef: float = 0.0,
@@ -31,7 +31,8 @@ class MyLineReg:
         self.random_state = random_state
         
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__} class: n_iter={self.n_iter}, learning_rate={self.learning_rate}"
+        params = [f"{key}={value}" for key, value in self.__dict__.items()]
+        return f"{self.__class__.__name__} class: " + ", ".join(params)
     
     def _get_bias(self, X: pd.DataFrame = None) -> pd.DataFrame:
         features = X.copy()
