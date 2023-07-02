@@ -42,30 +42,30 @@ class MyLineReg:
         return features
 
     @staticmethod
-    def _mae(y_true: np.array = None, y_pred: np.array = None):
+    def _mae(y_true: pd.Series = None, y_pred: np.array = None):
         return np.average(np.abs(y_pred - y_true), axis=0)
 
     @staticmethod
-    def _mse(y_true: np.array = None, y_pred: np.array = None):
+    def _mse(y_true: pd.Series = None, y_pred: np.array = None):
         output_errors = np.average((y_true - y_pred) ** 2, axis=0)
 
         return np.average(output_errors)
     
     @staticmethod
-    def _rmse(y_true: np.array = None, y_pred: np.array = None):
+    def _rmse(y_true: pd.Series = None, y_pred: np.array = None):
         output_errors = np.sqrt(np.average((y_true - y_pred) ** 2, axis=0))
 
         return np.average(output_errors)
 
     @staticmethod
-    def _mape(y_true: np.array = None, y_pred: np.array = None):
+    def _mape(y_true: pd.Series = None, y_pred: np.array = None):
         epsilon = np.finfo(np.float64).eps
         mape = np.abs(y_pred - y_true) / np.maximum(np.abs(y_true), epsilon)
 
         return 100 * np.average(mape, axis=0)
 
     @staticmethod
-    def _r2(y_true: np.array = None, y_pred: np.array = None):
+    def _r2(y_true: pd.Series = None, y_pred: np.array = None):
         numerator = ((y_true - y_pred) ** 2).sum(axis=0)
         denominator = ((y_true - np.average(y_true, axis=0)) ** 2).sum(axis=0)
         output_scores = 1 - (numerator / denominator)
@@ -132,7 +132,7 @@ class MyLineReg:
     def get_coef(self):
         return np.mean(self.weights[1:])
     
-    def predict(self, X: pd.DataFrame = None) -> float:
+    def predict(self, X: pd.DataFrame = None) -> np.array:
         features = self._get_bias(X)
         y_pred = features @ self.weights
 
