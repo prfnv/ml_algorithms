@@ -1,6 +1,8 @@
+import random
 import logging
 import numpy as np
 import pandas as pd
+from typing import Union, Callable
 
 
 _logger = logging.getLogger(__name__)
@@ -27,13 +29,23 @@ class MyLogReg:
     def __init__(
         self,
         n_iter: int = 10,
-        learning_rate: float = 0.1,
+        learning_rate: Union[float, Callable] = 0.1,
         metric: str = None,
+        reg: str = None,
+        l1_coef: float = 0.0,
+        l2_coef: float = 0.0,
+        sgd_sample: Union[int, float] = None,
+        random_state: int = 42
 ) -> None:
         self.n_iter = n_iter
         self.learning_rate = learning_rate
         self.weights = None
         self.metric = metric
+        self.reg = reg
+        self.l1_coef = l1_coef
+        self.l2_coef = l2_coef
+        self.sgd_sample = sgd_sample
+        self.random_state = random_state
 
     def __repr__(self) -> str:
         params = [f"{key}={value}" for key, value in self.__dict__.items()]
@@ -45,6 +57,87 @@ class MyLogReg:
         features.insert(loc=0, column="ones", value=list_ones)
 
         return features
+    
+    def _regularization(
+        self,
+        reg: str = None,
+        l1_coef: float = 0.0,
+        l2_coef: float = 0.0,
+        weights: np.array = None
+    ):
+        if reg == "l1":
+            reg = l1_coef * np.sign(weights)
+        elif reg == "l2":
+            reg = l2_coef * 2 * weights
+        else:
+            reg = l1_coef * np.sign(weights) + l2_coef * 2 * weights
+            
+        return reg
+    
+    def fit(self, X: pd.DataFrame = None, y: pd.Series = None, verbose: int = 0) -> None:
+        random.seed(self.random_state)
+        features = self._get_bias(X)
+        self.weights = np.ones(features.shape[1])
+
+        for i in range(self.n_iter):
+            y_hat = 1 / (1 + np.exp(-features @ self.weights))
+            loss = (y_hat - y)
+            log_loss = -1 * (y * np.log(y_hat + self.EPS) + (1 - y) * np.log(1 - y_hat + self.EPS)).sum() / features.shape[0]
+            if self.sgd_sample is not None:
+                if isinstance(self.sgd_sample, float):
+                    self.sgd_sample = round(features.shape[0] * self.sgd_sample)
+                sample_rows_idx = random.sample(range(features.shape[0]), self.sgd_sample)
+                grad = loss.iloc[sample_rows_idx] @ features.iloc[sample_rows_idx, :] / self.sgd_sample
+            else:
+                grad = loss @ features / features.shape[0]
+
+            if self.reg is not None:
+                grad += self._regularization(
+                    reg=self.reg,
+                    l1_coef=self.l1_coef,
+                    l2_coef=self.l2_coef,
+                    weights=self.weights
+                )
+            
+            if isinstance(self.learning_rate, Callable):
+                self.weights -= self.learning_rate(i+1) * grad.to_numpy()
+            else: 
+                self.weights -= self.learning_rate * grad.to_numpy()
+
+            if verbose and i % verbose == 0:
+                if self.metric:
+                    if self.metric == "roc_auc":
+                        y_pred = self.predict_proba(X)
+                    else:
+                        y_pred = self.predict(X)
+                    self.score = getattr(self, "_" + self.metric)(y, y_hat)
+                    _logger.info(f"{i if i else 'start'} | loss: {log_loss} | {self.metric}: {self.score}")
+                else:
+                    _logger.info(f"{i if i else 'start'} | loss: {log_loss}")
+
+        if self.metric:
+            if self.metric == "roc_auc":
+                y_pred = self.predict_proba(X)
+            else:
+                y_pred = self.predict(X)
+            self.score = getattr(self, "_" + self.metric)(y, y_pred)
+
+    def get_coef(self):
+        return np.mean(self.weights[1:])
+    
+    def predict_proba(self, X: pd.DataFrame = None) -> np.array:
+        features = self._get_bias(X)
+        y_pred = 1 / (1 + np.exp(-features @ self.weights))
+
+        return y_pred
+    
+    def predict(self, X: pd.DataFrame = None) -> np.array:
+        y_pred = (self.predict_proba(X) > 0.5).astype("int")
+
+        return y_pred
+    
+    def get_best_score(self) -> float:
+        return self.score
     
     @staticmethod
     def _accuracy(y_true: pd.Series = None, y_pred: np.array = None) -> float:
@@ -98,48 +191,3 @@ class MyLogReg:
         auc = np.dot(tpr, fpr_diff) + np.dot(tpr_diff, fpr_diff) / 2
 
         return auc
-    
-    def fit(self, X: pd.DataFrame = None, y: pd.Series = None, verbose: int = 0) -> None:
-        features = self._get_bias(X)
-        self.weights = np.ones(features.shape[1])
-
-        for i in range(self.n_iter):
-            y_hat = 1 / (1 + np.exp(-features @ self.weights))
-            log_loss = -1 * (y * np.log(y_hat + self.EPS) + (1 - y) * np.log(1 - y_hat + self.EPS)).sum() / features.shape[0]
-            grad = (y_hat - y) @ features / features.shape[0]
-            self.weights -= self.learning_rate * grad.to_numpy()
-
-            if verbose and i % verbose == 0:
-                if self.metric:
-                    if self.metric == "roc_auc":
-                        y_pred = self.predict_proba(X)
-                    else:
-                        y_pred = self.predict(X)
-                    self.score = getattr(self, "_" + self.metric)(y, y_hat)
-                    _logger.info(f"{i if i else 'start'} | loss: {log_loss} | {self.metric}: {self.score}")
-                else:
-                    _logger.info(f"{i if i else 'start'} | loss: {log_loss}")
-
-        if self.metric:
-            if self.metric == "roc_auc":
-                y_pred = self.predict_proba(X)
-            else:
-                y_pred = self.predict(X)
-            self.score = getattr(self, "_" + self.metric)(y, y_pred)
-
-    def get_coef(self):
-        return np.mean(self.weights[1:])
-    
-    def predict_proba(self, X: pd.DataFrame = None) -> np.array:
-        features = self._get_bias(X)
-        y_pred = 1 / (1 + np.exp(-features @ self.weights))
-
-        return y_pred
-    
-    def predict(self, X: pd.DataFrame = None) -> np.array:
-        y_pred = (self.predict_proba(X) > 0.5).astype("int")
-
-        return y_pred
-    
-    def get_best_score(self) -> float:
-        return self.score
