@@ -4,17 +4,10 @@ import pandas as pd
 from typing import Union
 
 
-def euclidean_distance(x1: np.array = None, x2: np.array = None) -> float:
-    distance = 0
-    for i in range(len(x1)):
-        distance += math.pow(x1[i] - x2[i], 2)
-    
-    return math.sqrt(distance)
-
-
 class MyKNNClf:
-    def __init__(self, k: int = 3) -> None:
+    def __init__(self, k: int = 3, metric: str = "euclidean") -> None:
         self.k = k
+        self.metric = metric
         self.train_size = None
         self.X_train = None
         self.y_train = None
@@ -49,7 +42,7 @@ class MyKNNClf:
         y_pred = np.empty(X.shape[0], dtype="int8")
 
         for i, sample in enumerate(X):
-            idx = np.argsort([euclidean_distance(sample, x) for x in self.X_train])[:self.k]
+            idx = np.argsort([getattr(self, "_" + self.metric)(sample, x) for x in self.X_train])[:self.k]
             knn = np.array([self.y_train[i] for i in idx])
             y_pred[i] = self._vote(knn)
 
@@ -60,21 +53,36 @@ class MyKNNClf:
         y_pred = np.empty(X.shape[0])
 
         for i, sample in enumerate(X):
-            idx = np.argsort([euclidean_distance(sample, x) for x in self.X_train])[:self.k]
+            idx = np.argsort([getattr(self, "_" + self.metric)(sample, x) for x in self.X_train])[:self.k]
             knn = np.array([self.y_train[i] for i in idx])
             y_pred[i] = np.mean(knn)
 
         return y_pred
     
+    @staticmethod
+    def _euclidean(x1: np.array = None, x2: np.array = None) -> float:
+        distance = 0
+        for i in range(len(x1)):
+            distance += math.pow(x1[i] - x2[i], 2)
+        
+        return math.sqrt(distance)
 
-if __name__ == "__main__":
-    data = pd.read_csv('/Users/paparfen/vscode/ml_algorithms/data/data_banknote_authentication.txt', sep=",", header=None)
-    data.columns = ["variance", "skewness", "kurtosis", "entropy", 'target']
-    # data = pd.read_csv('/Users/paparfen/vscode/ml_algorithms/data/iris.csv')
-    # data['variety'] = data['variety'].map({'Setosa': 0, 'Virginica': 1})
-    X = data.drop('target', axis=1)
-    y = data['target']
+    @staticmethod
+    def _manhattan(x1: np.array = None, x2: np.array = None) -> float:
+        distance = 0
+        for i in range(len(x1)):
+            distance += np.abs(x1[i] - x2[i])
 
-    model = MyKNNClf()
-    model.fit(X, y)
-    print(model.predict(X.head()))
+        return distance
+
+    @staticmethod
+    def _chebyshev(x1: np.array = None, x2: np.array = None) -> float:
+        distance = np.empty(x1.shape[0])
+        for i in range(len(x1)):
+            distance[i] = np.abs(x1[i] - x2[i])
+
+        return np.max(distance)
+
+    @staticmethod
+    def _cosine(x1: np.array = None, x2: np.array = None) -> float:
+        return 1 - np.dot(x1, x2) / (np.linalg.norm(x1) * np.linalg.norm(x2))
