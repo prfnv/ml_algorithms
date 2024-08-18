@@ -8,7 +8,7 @@ from typing import Union, Callable
 _logger = logging.getLogger(__name__)
 
 
-class MyLineReg:
+class LinearRegression:
     def __init__(
         self,
         n_iter: int = 100,

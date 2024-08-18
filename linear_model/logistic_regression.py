@@ -24,7 +24,7 @@ def _binary_clf_curve(y_true: pd.Series = None, y_pred: np.array = None):
     return tps, fps, thresholds
 
 
-class MyLogReg:
+class LogisticRegression:
     EPS = 1e-15
     def __init__(
         self,
